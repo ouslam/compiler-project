@@ -1,0 +1,16 @@
+#!/bin/tcsh -f 
+
+
+foreach target ("one" "two" "three" "four" "five" "six" "seven")
+	make $target
+end
+	
+foreach target ("one" "two" "three" "four" "five" "six" "seven" "eight" "nine")
+	make neat
+	make $target
+	make test
+end
+
+make distclean
+
+
