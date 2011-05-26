@@ -1,7 +1,7 @@
 #!/bin/tcsh -f 
 
 
-foreach target ("one" "two" "three" "four" "five" "six" "seven")
+foreach target ("ione" "itwo" "ithree" "ifour" "ifive" "isix" "iseven")
 	make $target
 end
 	

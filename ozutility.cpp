@@ -836,14 +836,16 @@ bool scanner::tryKeyword(DETAIL_TOKEN_TYPE t,unsigned int i,string function){
 	}
 }
 
-char scanner::ParseNextChar () {
+char scanner::ParseNextChar (int opt) {
 	char c = infile.get();
-	if (c >= 'A' && c<= 'Z'){
-		c = tolower(c);
-	}
-	if (c == '\n') {
-		++ lineno;
-	}
+	if (opt == 0){
+		if (c >= 'A' && c<= 'Z'){
+			c = tolower(c);
+		}
+	} 
+		if (c == '\n') {
+			++ lineno;
+		}
 	return c;
 }
 
@@ -977,7 +979,7 @@ int scanner::parseNextToken(){
 			// string
 			while (is_valid_str_char(c)) {
 				tokenName += c;
-				c = ParseNextChar();
+				c = ParseNextChar(1);
 			}
 
 			if (c == '"'){
@@ -1202,7 +1204,7 @@ int scanner::parseLineDeclaration( void ){
 			p->arrSize = parseArraySize();
 			p->regPos = regPtr;
 			if (symt.func_array[symt.func_cur].parent == -1) {
-				p->memPos = memPtr+1;
+				p->memPos = memPtr;
 				memPtr+= p->arrSize;
 			} else {
 				p->memPos = symt.func_array[symt.func_cur].stack_num ;
@@ -1326,12 +1328,12 @@ int scanner::parseLineStatement(void){
 			if ( symt.func_array[symt.func_cur].parent != -1 ) {
 				// pop return value 
 				int regNum = regPtr++;
-				//outfile << "REG[0] = REG[0] + 1;"<<endl;
-				outfile << "REG[ "<< regNum <<" ] = MEM[ REG[0] + 1 ];"<<endl;
+				outfile << "REG[0] = REG[0] + 1;"<<endl;
+				outfile << "REG[ "<< regNum <<" ] = MEM[ REG[0] ];"<<endl;
 	
 				// pop out parameter
 				//int i = symt.func_par_table[ symt.func_array[symt.func_cur].name ].size();
-				outfile << "REG[0] = REG[0] + " << symt.func_array[symt.func_cur].stack_num  <<"; " << endl;
+				outfile << "REG[0] = REG[0] + " << symt.func_array[symt.func_cur].stack_num - 1  <<"; " << endl;
 				// push return value
 				pushStack(p->regPos);
 				//cout << "push return value " << endl;
@@ -1343,7 +1345,10 @@ int scanner::parseLineStatement(void){
 		} else {
 			if ( symt.func_array[symt.func_cur].parent == -1 ) {
 				if (arrayIndex == 1) {
-					outfile  << "MEM[ " << p->memPos <<" + REG["<< regINC<< "] ] = REG[" << p->regPos <<"];" << endl;
+					int regTMP = regPtr ++;
+					outfile  << " REG["<<regTMP<<"] = "<< p->memPos<<" + REG["<<regINC<<"] ;" << endl;
+					outfile  << " MEM [REG [ "<<regTMP<<"]] = REG["<<p->regPos<<"] ;" << endl;
+					//outfile  << "MEM[ " << p->memPos <<" + REG["<< regINC<< "] ] = REG[" << p->regPos <<"];" << endl;
 				} else {
 					outfile  << "MEM[ " << p->memPos <<" ] = REG[" << p->regPos <<"];" << endl;
 				//outfile << "MEM[" << p->memPos <<"] = REG[" << p->regPos << "];" << endl;
@@ -1369,7 +1374,10 @@ int scanner::parseLineStatement(void){
 				}
 				if (distance == 0) {
 					if (arrayIndex == 1) {
-						outfile  << "MEM[ " << p->memPos <<" + REG["<< regINC<< "] ] = REG[" << p->regPos <<"];" << endl;
+						int regTMP = regPtr ++;
+						outfile  << "REG["<<regTMP<<"] = "<<p->memPos<<" + REG["<<regINC<<"] ;" << endl;
+						outfile  << "MEM[ REG["<< regTMP << "] ] = REG[" << p->regPos <<"];" << endl;
+						//outfile  << "MEM[ " << p->memPos <<" + REG["<< regINC<< "] ] = REG[" << p->regPos <<"];" << endl;
 					} else {
 						outfile  << "MEM[ " << p->memPos <<" ] = REG[" << p->regPos <<"];" << endl;
 						//outfile << "MEM[" << p->memPos <<"] = REG[" << p->regPos << "];" << endl;
@@ -1377,9 +1385,16 @@ int scanner::parseLineStatement(void){
 				} else {
 					int gap = distance + 1 - p->memPos;
 					if (arrayIndex == 1) {
-						outfile  << "MEM[ REG[0] + " << gap <<" - REG["<< regINC<< "] ] = REG[" << p->regPos <<"];" << endl;
+						int regTMP = regPtr ++;
+						outfile  << "REG[" << regTMP << "] = REG[0] + " << gap <<" ; " << endl;
+						outfile  << "REG[ "<<regTMP<<" ] = REG[ "<<regTMP <<" ] - REG["<<regINC<<"] ;" << endl;
+						outfile  << "MEM[ REG[ " << regTMP <<" ] ] = REG[" << p->regPos <<"];" << endl;
+						//outfile  << "MEM[ REG[0] + " << gap <<" - REG["<< regINC<< "] ] = REG[" << p->regPos <<"];" << endl;
 					} else {
-						outfile  << "MEM[ REG[0] + " << gap <<" ] = REG[" << p->regPos <<"];" << endl;
+						int regTMP = regPtr ++;
+						outfile  << "REG["<<regTMP<<"] = REG[0] + "<< gap <<" ;" << endl;
+						outfile  << "MEM[ REG[ "<<regTMP<<"] ] = REG[" << p->regPos <<"];" << endl;
+						//outfile  << "MEM[ REG[0] + " << gap <<" ] = REG[" << p->regPos <<"];" << endl;
 						//outfile << "MEM[" << p->memPos <<"] = REG[" << p->regPos << "];" << endl;
 					}
 				}
@@ -1861,18 +1876,28 @@ SymType scanner::parseExpression(int tag, int retREG ){
 				//	cout << "index:" << index <<" is out of bound: " << p->arrSize << endl;
 				//}
 				if ( symt.func_array[symt.func_cur].parent == -1 || distance == 0) {
-					outfile << "REG["<< retREG << "] = MEM[ " << p->memPos <<" + REG["<< regIDX <<"] ] ;" << endl;
+					int regTMP = regPtr ++;
+					outfile << "REG["<<regTMP<<"] = REG["<<regIDX<<"] + "<<p->memPos<<" ; " << endl;
+					outfile << "REG["<< retREG << "] = MEM[  REG["<< regTMP <<"] ] ;" << endl;
+					//outfile << "REG["<< retREG << "] = MEM[ " << p->memPos <<" + REG["<< regIDX <<"] ] ;" << endl;
 				} else {
 					//outfile << "REG["<< retREG << "] = MEM[ REG[0] +" << symt.func_array[symt.func_cur].stack_num + 1 - p->memPos <<"- REG["<< regIDX <<"] ] ;" << endl;
-					outfile << "REG["<< retREG << "] = MEM[ REG[0] +" << distance + 1 - p->memPos <<"- REG["<< regIDX <<"] ] ;" << endl;
+					int regTMP = regPtr ++;
+					outfile << "REG["<<regTMP<<"] = REG[0] + "<< distance + 1 - p->memPos << " ;" << endl;
+					outfile << "REG["<<regTMP<<"] = REG["<<regTMP<<"] - REG["<<regIDX<<"] ;" << endl;
+					outfile << "REG["<<retREG<<"] = MEM [ REG["<<regTMP<<"]] ;" << endl;
+					//outfile << "REG["<< retREG << "] = MEM[ REG[0] +" << distance + 1 - p->memPos <<"- REG["<< regIDX <<"] ] ;" << endl;
 				}
 			} else {
 				tokenPt = i+1;
 				if ( symt.func_array[symt.func_cur].parent == -1 || distance == 0) {
 					outfile << "REG["<< retREG << "] = MEM[ " << p->memPos <<"] ;" << endl;
 				} else {
+					int regTMP = regPtr ++;
+					outfile << "REG["<< regTMP<<"] =  REG[0] + "<< distance + 1 - p->memPos<<";" << endl;
+					outfile << "REG["<< retREG << "] = MEM[ REG[" << regTMP <<"]] ;" << endl;
 					//outfile << "REG["<< retREG << "] = MEM[ REG[0] +" << symt.func_array[symt.func_cur].stack_num + 1 - p->memPos <<"] ;" << endl;
-					outfile << "REG["<< retREG << "] = MEM[ REG[0] +" << distance + 1 - p->memPos <<"] ;" << endl;
+					//outfile << "REG["<< retREG << "] = MEM[ REG[0] +" << distance + 1 - p->memPos <<"] ;" << endl;
 				}
 			}
 
@@ -1954,13 +1979,13 @@ int scanner::parseArgumentList(string func, int parNum ){
 	return parNum;
 }
 
-
+/*
 int scanner::getStackValue(int index) {
 	int regNum = regPtr++;
 	outfile << "REG[ "<< regNum <<" ] = MEM[ REG[0] + " << index <<" ];"<<endl;
 	return regNum;
 }
-
+*/
 int scanner::pushStack ( int regNum){
 //	outfile << endl;
 	outfile << "MEM[REG[0]] = REG[ " <<regNum <<" ] ;"<<endl;
@@ -2010,13 +2035,13 @@ void scanner::GenWrapperFile (string fname) {
 
 void scanner::InitParamFile (){
 
-outfile << "for (int i = 0; i<10000; ++i) {" << endl;
+outfile << "for (int i = 0; i<MAX_MEM; ++i) {" << endl;
 outfile << "    MEM[i] = 1;" << endl;
 outfile << "}" << endl;
 
 outfile << "REG[0] = MAX_REG - 1;" << endl;
-outfile << "REG[1] = 1000;" << endl;
-outfile << "for (int i = 2; i<10000; ++i) {" << endl;
+outfile << "REG[1] = MAX_MEM/4;" << endl;
+outfile << "for (int i = 2; i<MAX_REG; ++i) {" << endl;
 outfile << "    REG[i] = 0;" << endl;
 outfile << "}" << endl;
 
@@ -2311,7 +2336,7 @@ void  scanner::GenMemHFile (string fname){
 	mem_h << "#ifndef _MEM_H_" << endl ;
 	mem_h << "#define _MEM_H_" << endl ;
 	mem_h << "" << endl ;
-	mem_h << "#define MAX_MEM 10000" << endl ;
+	mem_h << "#define MAX_MEM 33554432" << endl ;
 	mem_h << "#define MAX_REG 10000" << endl ;
 	mem_h << "" << endl ;
 	mem_h << "" << endl ;

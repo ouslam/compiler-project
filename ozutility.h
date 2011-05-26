@@ -106,7 +106,7 @@ public:
 	int closeFile ();
 private:
 	int getToken (string line);
-	char ParseNextChar () ;
+	char ParseNextChar (int opt = 0) ;
 	void PutBackNextChar (char c) ;
 	int parseNextToken ();
 	string getTokenName(unsigned int i);

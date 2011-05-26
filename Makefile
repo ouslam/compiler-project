@@ -20,7 +20,7 @@ ozutility.o : ozutility.h ozutility.cpp
 clean: 
 	rm -f oz *.o
 
-neat : clean
+neat : 
 	rm -f prog.cpp build_in.cpp func_build_in.cpp func_build_in.h mem.h wrapper.cpp retaddr.cpp
 
 distclean : clean neat
